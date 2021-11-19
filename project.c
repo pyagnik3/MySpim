@@ -1,9 +1,11 @@
+// Members: Jacob Cordonero, 
+//          Juan Guarnizo Lopez,
+//          Poojan Yagnik
+
 #include "spimcore.h"
 
 /* ALU: 10 points by Jacob */
 void ALU(unsigned A, unsigned B, char ALUControl, unsigned *ALUresult, char *Zero){
-
-    printf("%d %d\n", A, B);
 
     if(ALUControl == 0x0) {
         *ALUresult = A + B;
@@ -13,10 +15,9 @@ void ALU(unsigned A, unsigned B, char ALUControl, unsigned *ALUresult, char *Zer
     } 
     else if (ALUControl == 0x2) {
         // if A < B, Z = 1; otherwise, Z = 0 
-        int ones = 0b1111111111111111 << 16;
-        int aExtended = (A&1<<15?A|ones:A);
-        int bExtended = (B&1<<15?B|ones:B);
-        *ALUresult = aExtended < bExtended;
+        int a = A;
+        int b = B;
+        *ALUresult = a < b;
     } 
     // if A < B, Z = 1; otherwise, Z = 0 (A and B are unsigned integers)
     else if (ALUControl == 0x3){
@@ -57,9 +58,9 @@ int instruction_fetch(unsigned PC,unsigned *Mem,unsigned *instruction){
 void instruction_partition(unsigned instruction, unsigned *op, unsigned *r1,unsigned *r2, unsigned *r3, unsigned *funct, unsigned *offset, unsigned *jsec){
 
     *op = instruction >> 26;
-    *r1 = (instruction & (0b11111 << 20)) >> 21;
-    *r2 = (instruction & (0b11111 << 15)) >> 16;
-    *r3 = (instruction & (0b11111 << 10)) >> 11;
+    *r1 = (instruction >> 21 ) & (0b11111);
+    *r2 = (instruction >> 16) & (0b11111);
+    *r3 = (instruction >> 11) & (0b11111);
     *funct = instruction & (0b111111);
     *offset = instruction & (0b1111111111111111);
     *jsec = instruction & (0b11111111111111111111111111);
@@ -79,73 +80,59 @@ int instruction_decode(unsigned op, struct_controls *controls){
     controls->MemWrite = 0x0;
     controls->ALUSrc = 0x0;
     controls->RegWrite = 0x0;
-
     switch (op){
-
         //update instructions that are enabled
         case 0b000000: //r-type
             controls->RegDst = 0x1;
             controls->ALUOp = 0x7;
             controls->RegWrite = 0x1;
             break;
-
         case 0b000010: //jump
             controls->RegDst = 0x2;
             controls->Jump = 0x1;
             break;
-
         case 0b000100: //beq
             controls->RegDst = 0x2;
             controls->Branch = 0x1;
             controls->MemtoReg = 0x2;
+            controls->ALUOp = 0x1;
             break;
-
         case 0b001000: //addi
             controls->ALUSrc = 0x1;
             controls->RegWrite = 0x1;
             break;
-
         case 0b001010: //slti
             controls->ALUOp = 0x2;
             controls->ALUSrc = 0x1;
             controls->RegWrite = 0x1;
             break;
-
         case 0b001011: //sltiu
             controls->ALUOp = 0x3;
             controls->ALUSrc = 0x1;
             controls->RegWrite = 0x1;
             break;
-
         case 0b001111: //lui
             controls->ALUOp = 0x6;
             controls->ALUSrc = 0x1;
             controls->RegWrite = 0x1;
             break;
-
         case 0b100011: //lw
             controls->MemRead = 0x1;
             controls->MemtoReg = 0x1;
             controls->ALUSrc = 0x1;
             controls->RegWrite = 0x1;
             break;
-
         case 0b101011: //sw
             controls->RegDst = 0x2;
             controls->MemtoReg = 0x2;
             controls->MemWrite = 0x1;
             controls->ALUSrc = 0x1;
             break;
-        
         default: 
-
         //Return 1 if a halt condition occurs; otherwise, return 0. 
         return 1;
-
     }
-    
     return 0;
-
 }
 
 /* Read Register: 5 Points by Juan */
@@ -218,11 +205,15 @@ int ALU_operations(unsigned data1,unsigned data2,unsigned extended_value,unsigne
 int rw_memory(unsigned ALUresult,unsigned data2,char MemWrite,char MemRead,unsigned *memdata,unsigned *Mem){
 
     if(MemWrite == 1){
-        if((ALUresult % 4) == 0) Mem[ALUresult >> 2] = data2; else return 1;
+        if((ALUresult % 4) == 0) Mem[ALUresult >> 2] = data2;
+        //why the >> ? 
+         else return 1;
     }
 
     if(MemRead == 1){
-        if((ALUresult % 4) == 0) *memdata = Mem[ALUresult >> 2]; else return 1;
+        if((ALUresult % 4) == 0) *memdata = Mem[ALUresult >> 2]; 
+        //Why the >> ?
+        else return 1;
     }
 
     return 0;
@@ -231,12 +222,20 @@ int rw_memory(unsigned ALUresult,unsigned data2,char MemWrite,char MemRead,unsig
 
 /* Write Register: 10 Points by Juan */
 void write_register(unsigned r2,unsigned r3,unsigned memdata,unsigned ALUresult,char RegWrite,char RegDst,char MemtoReg,unsigned *Reg){
-  
+    //load word
     if(MemtoReg == 1 && RegDst == 0 && RegWrite == 1){
+      //if( (r2 % 4) == 0 ) Reg[r2] = memdata; ~Juan
         Reg[r2] = memdata;
     }
+    //R-type
     else if(MemtoReg == 0 && RegDst == 1 &&  RegWrite == 1){
+        //if( (r3 % 4) == 0 ) Reg[r3] = ALUresult; ~Juan
         Reg[r3] = ALUresult;
+    }
+    //addi
+    else if(MemtoReg == 0 && RegDst == 0 &&  RegWrite == 1){
+        //if( (r3 % 4) == 0 ) Reg[r3] = ALUresult; ~Juan
+        Reg[r2] = ALUresult;
     }
   
 }
